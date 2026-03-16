@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Datos y Modelos (se gestionan localmente o vía MLflow)
+data/
+models/*.pkl
+mlruns/
+
+# IDEs
+.vscode/
+.idea/
