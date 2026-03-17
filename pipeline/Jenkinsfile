@@ -40,7 +40,8 @@ pipeline {
                     // Sobrescribimos la URL de MLflow para que guarde localmente en la carpeta mlruns
                     sh """
                     docker run --rm \
-                    -e MLFLOW_TRACKING_URI=http://mlflow_server:5000 \
+                    --network host \
+                    -e MLFLOW_TRACKING_URI=http://localhost:5000 \
                     ${DOCKER_IMAGE_NAME} \
                     python3 -m src.main
                     """

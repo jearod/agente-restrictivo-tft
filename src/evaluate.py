@@ -29,7 +29,7 @@ def evaluate_agent():
     
     best_model_path = max(checkpoints, key=os.path.getctime)
     print(f"\nCargando pesos neuronales desde: {best_model_path}")
-    model = TemporalFusionTransformer.load_from_checkpoint(best_model_path)
+    model = TemporalFusionTransformer.load_from_checkpoint(best_model_path, weights_only=False)
     model.eval()
 
     print("\nExtrayendo el 15% de datos de prueba (Test Set) no vistos...")
