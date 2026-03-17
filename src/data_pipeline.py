@@ -1,62 +1,65 @@
 import pandas as pd
 import os
 
+# Corpus Global Combinado: Mantenemos los originales y completamos con la metadata disponible
+GLOBAL_ETFS = [
+    # América (Pilares y capitalizaciones medias/bajas)
+    "VOO", "QQQ", "DIA", "IJH", "IJR",
+    # Europa (Exposición a mercados desarrollados europeos)
+    "IEUS", "EWL", "EWD",
+    # Asia / Pacífico (Exposición a Japón, China, India y la región del Pacífico)
+    "EWJV", "VPL", "CNYA", "SMIN"
+]
+
 def load_and_sort_data(filepath):
-    """
-    Carga el dataset del ETF y lo ordena cronológicamente.
-    Esto es crucial para procesar series temporales.
-    """
-    print(f"Cargando datos desde: {filepath}")
     df = pd.read_csv(filepath)
-    
-    # Asegurarnos de que la columna de fecha sea un objeto 'datetime'
-    # Ajusta 'Date' si tu columna tiene otro nombre (ej. 'fecha')
     if 'Date' in df.columns:
         df['Date'] = pd.to_datetime(df['Date'])
-        # Ordenar de más antiguo a más reciente
         df = df.sort_values('Date').reset_index(drop=True)
-    
     return df
 
 def strict_temporal_partition(df):
-    """
-    Aplica el Protocolo Estricto de Partición Temporal (70% / 15% / 15%).
-    Ejecuta una división cronológica determinista para evitar la 
-    contaminación del modelo (sesgo de anticipación).
-    """
     total_rows = len(df)
-    
-    # Calcular los índices de corte
     train_end = int(total_rows * 0.70)
-    val_end = int(total_rows * 0.85) # 70% + 15%
+    val_end = int(total_rows * 0.85)
     
-    # División secuencial aislada
     train_df = df.iloc[:train_end]
     val_df = df.iloc[train_end:val_end]
     test_df = df.iloc[val_end:]
     
-    print(f"Partición completada:")
-    print(f" - Entrenamiento (70%): {len(train_df)} registros")
-    print(f" - Validación (15%): {len(val_df)} registros")
-    print(f" - Prueba (15%): {len(test_df)} registros")
-    
     return train_df, val_df, test_df
 
-if __name__ == "__main__":
-    # Instrucciones de prueba local:
-    # 1. Coloca un archivo de prueba llamado 'etf_sample.csv' en 'data/raw/'
-    # 2. Ejecuta este script
+def load_global_portfolio(data_dir="data/raw"):
+    all_train, all_val, all_test = [], [], []
     
-    sample_path = "data/raw/etf_sample.csv"
+    print(f"Buscando el corpus global de {len(GLOBAL_ETFS)} ETFs en '{data_dir}'...")
     
-    # Solo ejecutamos si el archivo de prueba existe
-    if os.path.exists(sample_path):
-        data = load_and_sort_data(sample_path)
-        train, val, test = strict_temporal_partition(data)
+    for ticker in GLOBAL_ETFS:
+        filepath = os.path.join(data_dir, f"{ticker}.csv")
         
-        # Opcional: Guardar los datos procesados para el entrenamiento
-        # train.to_csv("../data/processed/train.csv", index=False)
-        # val.to_csv("../data/processed/val.csv", index=False)
-        # test.to_csv("../data/processed/test.csv", index=False)
-    else:
-        print(f"Para probar el script, por favor añade un archivo CSV en {sample_path}")
+        if os.path.exists(filepath):
+            print(f" - Procesando: {ticker}")
+            df = load_and_sort_data(filepath)
+            df['Symbol'] = ticker 
+            
+            # Particionamos CADA ETF individualmente
+            train, val, test = strict_temporal_partition(df)
+            
+            all_train.append(train)
+            all_val.append(val)
+            all_test.append(test)
+        else:
+            print(f" [!] Advertencia: Archivo {ticker}.csv no encontrado. Saltando...")
+            
+    if not all_train:
+        raise FileNotFoundError("No se encontró ningún archivo CSV de los ETFs especificados.")
+        
+    # Concatenamos todo en tensores masivos
+    mega_train = pd.concat(all_train, ignore_index=True)
+    mega_val = pd.concat(all_val, ignore_index=True)
+    mega_test = pd.concat(all_test, ignore_index=True)
+    
+    print(f"\nCorpus consolidado:")
+    print(f" - Entrenamiento Total: {len(mega_train)} registros")
+    
+    return mega_train, mega_val, mega_test

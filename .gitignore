@@ -1,15 +1,29 @@
-# Python
+# =========================
+# Entornos de Python
+# =========================
 __pycache__/
 *.py[cod]
 *$py.class
 venv/
 .env
 
-# Datos y Modelos (se gestionan localmente o vía MLflow)
+# =========================
+# Datos y Volúmenes (¡Crítico para evitar fugas de datos!)
+# =========================
 data/
-models/*.pkl
 mlruns/
 
-# IDEs
-.vscode/
-.idea/
+# =========================
+# Modelos y Checkpoints de PyTorch
+# =========================
+models/
+*.pkl
+*.ckpt
+*.pth
+lightning_logs/
+
+# =========================
+# Archivos del Sistema Operativo
+# =========================
+.DS_Store
+Thumbs.db

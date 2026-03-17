@@ -3,6 +3,8 @@ from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from lightning.pytorch.loggers import MLFlowLogger
 from pytorch_forecasting import TemporalFusionTransformer, TimeSeriesDataSet
 from pytorch_forecasting.metrics import QuantileLoss
+import os # Asegúrate de importar os al inicio del archivo
+   
 
 def train_tft_model(training_dataset: TimeSeriesDataSet, val_dataset: TimeSeriesDataSet, batch_size=64):
     """
@@ -32,7 +34,7 @@ def train_tft_model(training_dataset: TimeSeriesDataSet, val_dataset: TimeSeries
 
     mlf_logger = MLFlowLogger(
         experiment_name="Agente_Restrictivo_Preentrenamiento",
-        tracking_uri="file:./mlruns"
+        tracking_uri="http://localhost:5000" # Apunta a tu contenedor Docker local
     )
 
     trainer = pl.Trainer(
