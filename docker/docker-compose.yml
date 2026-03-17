@@ -7,16 +7,22 @@ volumes:
   jenkins_home:
     name: infrastructure_jenkins_home
 
+networks:
+  jenkins_mlflow:
+    driver: bridge
+
 services:
   # Contenedor 1: Servidor de Tracking de MLflow
   mlflow_server:
     image: python:3.9-slim
-    container_name: tft_mlflow_server
+    container_name: mlflow_server
     ports:
       - "5000:5000"
     # Montamos el volumen persistente en la carpeta de mlruns
     volumes:
       - mlflow_data:/app/mlruns
+    networks:
+      - jenkins_mlflow
     working_dir: /app
     # Instalamos mlflow y levantamos el servidor para que escuche en todas las interfaces (0.0.0.0)
     command: >
@@ -33,4 +39,6 @@ services:
     volumes:
       - jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - jenkins_mlflow
     restart: always
