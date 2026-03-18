@@ -1,13 +1,13 @@
 import pandas as pd
 import os
 
-# Corpus Global Combinado: Mantenemos los originales y completamos con la metadata disponible
-# América (Pilares y capitalizaciones medias/bajas)
-# Europa (Exposición a mercados desarrollados europeos)
-# Asia / Pacífico (Exposición a Japón, China, India y la región del Pacífico)
+# Corpus Global
 GLOBAL_ETFS = [
+    # América (Pilares y capitalizaciones medias/bajas)
     "VOO", "QQQ", "DIA", "IJH", "IJR",
+    # Europa (Exposición a mercados desarrollados europeos)
     "IEUS", "EWL", "EWD",
+    # Asia / Pacífico (Exposición a Japón, China, India y la región del Pacífico)
     "EWJV", "VPL", "CNYA", "SMIN"
 ]
 
