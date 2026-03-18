@@ -27,7 +27,7 @@ def evaluate_agent():
         print("[ERROR] No se encontraron modelos en 'models/'.")
         return
     
-    best_model_path = max(checkpoints, key=os.path.getctime)
+    best_model_path = "models/best/best_model.ckpt"
     print(f"\nCargando pesos neuronales desde: {best_model_path}")
     model = TemporalFusionTransformer.load_from_checkpoint(best_model_path, weights_only=False)
     model.eval()

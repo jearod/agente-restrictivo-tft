@@ -1,89 +1,111 @@
 pipeline {
     agent any
 
+    // ==========================================
+    // PARÁMETROS DE EJECUCIÓN (Interfaz de Jenkins)
+    // ==========================================
     parameters {
-        booleanParam(name: 'RUN_MASS_INFERENCE', defaultValue: false, description: '¿Ejecutar la validación masiva con los 500+ ETFs?')
+        booleanParam(name: 'TRAIN_MODEL', defaultValue: true, description: '¿Entrenar el modelo desde cero? (Desmárcalo para ir directo a la evaluación/inferencia usando el modelo congelado en models/best/)')
+        booleanParam(name: 'RUN_MASS_INFERENCE', defaultValue: false, description: '¿Ejecutar la validación masiva con los 500+ ETFs? (Generará el CSV final)')
     }
 
+    // ==========================================
+    // CONFIGURACIÓN GLOBAL
+    // ==========================================
     options {
-        buildDiscarder(logRotator(numToKeepStr: '5'))
-        disableConcurrentBuilds()
-        timestamps() 
+        buildDiscarder(logRotator(numToKeepStr: '5')) // Solo guarda el historial de los últimos 5 builds
+        disableConcurrentBuilds() // Evita que dos ejecuciones choquen entre sí
+        timestamps() // Añade la hora exacta a cada línea de log
     }
 
     environment {
         DOCKER_IMAGE_NAME = "agente-tft-env"
     }
 
+    // ==========================================
+    // FASES DEL PIPELINE (STAGES)
+    // ==========================================
     stages {
         stage('Checkout') {
-            steps { checkout scm }
+            steps { 
+                checkout scm 
+            }
         }
 
         stage('Build Docker Environment') {
             steps {
-                echo "🏗️ Construyendo imagen y horneando los datos (etf.zip) dentro de ella..."
-                sh "docker build --no-cache -t ${DOCKER_IMAGE_NAME} -f docker/Dockerfile ."
+                echo "🏗️ Construyendo imagen hermética y horneando el código..."
+                // Forzamos --no-cache para asegurar que siempre toma los últimos cambios de Git
+                sh "docker build --no-cache -t ${DOCKER_IMAGE_NAME} ."
             }
         }
 
         stage('Start Execution Environment') {
             steps {
-                sh "docker rm -f tft_execution || true"
-                // NOTA: Eliminamos el -v. El contenedor ya tiene todo adentro.
+                echo "🔄 Levantando el contenedor orquestador en el fondo..."
+                sh "docker rm -f tft_execution || true" // Limpieza preventiva
+                // Red host para conectar con MLflow local, sin volúmenes pesados
                 sh "docker run -d --name tft_execution --network host -e MLFLOW_TRACKING_URI=http://localhost:5000 ${DOCKER_IMAGE_NAME} tail -f /dev/null"
             }
         }
 
-        // NUEVA FASE: Descomprimir los datos usando Python nativo
         stage('Phase 0: Prepare Data') {
             steps {
-                echo "📦 Extrayendo corpus de ETFs (pretrain y raw)..."
-                // Usamos shutil de Python para extraer el zip dentro de la carpeta data/
+                echo "📦 Extrayendo corpus de ETFs (pretrain y raw) desde el etf.zip inyectado..."
                 sh "docker exec tft_execution python3 -c \"import shutil; shutil.unpack_archive('data/etf.zip', 'data/')\""
-                // Verificamos rápidamente que las carpetas se crearon bien
-                sh "docker exec tft_execution ls -la data/"
+                // Validación rápida para los logs
+                sh "docker exec tft_execution ls -la data/pretrain || echo 'Directorio pretrain no encontrado'"
             }
         }
 
         stage('Phase 1: Train Model') {
+            when { expression { params.TRAIN_MODEL == true } }
             steps {
-                echo "🧠 Entrenando modelo TFT..."
+                echo "🧠 Entrenando modelo TFT (Python auto-promoverá el mejor)..."
                 sh "docker exec tft_execution python3 -m src.main"
+                
+                echo "💾 Rescatando el modelo campeón hacia Jenkins..."
+                // Creamos la carpeta local en el workspace por si acaso
+                sh "mkdir -p models/best"
+                // IMPORTANTE: Modificamos la ruta de origen para que coincida con "best"
+                sh "docker cp tft_execution:/app/models/best/best_model.ckpt ./models/best/best_model.ckpt || true"
+                
+                // Lo guardamos como Artefacto para descarga
+                archiveArtifacts artifacts: 'models/best/best_model.ckpt', allowEmptyArchive: true
             }
         }
 
         stage('Phase 2: Evaluate Agent') {
             steps {
-                echo "📊 Evaluando modelo base (F1 y MDD)..."
+                echo "📊 Evaluando modelo de producción (F1 y MDD)..."
                 sh "docker exec tft_execution python3 -m src.evaluate"
             }
         }
 
         stage('Phase 3: Mass Inference') {
-            when {
-                expression { params.RUN_MASS_INFERENCE == true }
-            }
+            when { expression { params.RUN_MASS_INFERENCE == true } }
             steps {
                 echo "🚀 Ejecutando inferencia masiva en 500+ ETFs..."
                 sh "docker exec tft_execution python3 -m src.mass_inference"
             }
         }
 
-        stage('Extract Artifacts') {
-            when {
-                expression { params.RUN_MASS_INFERENCE == true }
-            }
+        stage('Extract Mass Inference Results') {
+            when { expression { params.RUN_MASS_INFERENCE == true } }
             steps {
+                echo "💾 Rescatando el reporte CSV de Inferencia Masiva..."
                 sh "docker cp tft_execution:/app/data/processed/mass_inference_results.csv ./mass_inference_results.csv || true"
                 archiveArtifacts artifacts: 'mass_inference_results.csv', allowEmptyArchive: true
             }
         }
     }
 
+    // ==========================================
+    // LIMPIEZA POST-EJECUCIÓN
+    // ==========================================
     post {
         always {
-            echo "🧹 Destruyendo contenedor y limpiando..."
+            echo "🧹 Destruyendo contenedor y limpiando espacio en disco..."
             sh "docker rm -f tft_execution || true"
             sh "docker image prune -f || true"
         }

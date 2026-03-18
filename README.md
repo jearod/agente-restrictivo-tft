@@ -2,38 +2,47 @@
 
 Este repositorio contiene la implementación algorítmica de un **Agente Restrictivo** basado en aprendizaje profundo. Su objetivo es transformar la predicción pasiva de los mercados financieros en una intervención mecánica activa, bloqueando operaciones subóptimas para proteger a los inversores minoristas.
 
+## 📊 Origen de los Datos
+Los datos históricos de precios y volumen utilizados para entrenar y validar este modelo han sido extraídos de Kaggle: **[Historical ETF Data](https://www.kaggle.com/datasets/liewyousheng/historical-etf)**. 
+Para garantizar la reproducibilidad exacta del experimento (Grado R1), un subconjunto consolidado de estos datos se encuentra empaquetado y versionado directamente en este repositorio dentro del archivo `data/etf.zip`.
+
 ## 🧠 Arquitectura del Modelo
 El núcleo predictivo utiliza la arquitectura **Temporal Fusion Transformer (TFT)** a través de la librería `pytorch-forecasting`. El modelo procesa:
 * **Metadatos Estáticos:** Identificadores de los activos (Tickers).
-* **Variables Temporales Conocidas:** Índices de calendario.
+* **Variables Temporales Conocidas:** Índices de calendario (Día de la semana, Mes).
 * **Variables Temporales Desconocidas:** Histórico de precios (Open, High, Low, Close) y Volumen.
 
 ## 🌍 Corpus Global y Transfer Learning
-Para lograr una generalización robusta sin sufrir de sobreajuste local, el modelo se pre-entrena utilizando Transfer Learning sobre un corpus global de 12 ETFs confirmados:
-* **América:** `VOO` (S&P 500), `QQQ` (Nasdaq), `DIA` (Dow Jones), `IJH` (Mid-Cap), `IJR` (Small-Cap).
-* **Europa:** `IEUS` (Europa Small-Cap), `EWL` (Suiza), `EWD` (Suecia).
-* **Asia / Pacífico:** `EWJV` (Japón), `VPL` (Pacífico), `CNYA` (China), `SMIN` (India).
+El proyecto divide el aprendizaje y la validación en dos grandes fases para evitar la fuga de datos (*Data Leakage*):
+1. **Fase de Pre-entrenamiento (`data/pretrain/`):** El modelo aprende las "reglas universales" del mercado usando 12 ETFs globales representativos (VOO, QQQ, DIA, IEUS, EWJV, etc.).
+2. **Fase de Inferencia Masiva (`data/raw/` extraído del zip):** Se aplica *Zero-Shot Transfer Learning* sobre más de 500 ETFs adicionales que el modelo jamás ha visto, demostrando su capacidad de generalización para reducir el Maximum Drawdown.
 
-## ⚙️ Arquitectura de Ejecución (Híbrida)
-Para maximizar el rendimiento y mantener la trazabilidad (Grado R1), el proyecto utiliza un modelo híbrido:
-1. **Infraestructura de Tracking:** Contenedor Docker dedicado al servidor de **MLflow** con volúmenes persistentes.
-2. **Motor de Entrenamiento:** Ejecución nativa en el entorno Python (WSL/Linux).
+## 📁 Estructura Principal del Proyecto
+* **`containers/`**: Contiene la infraestructura base (`docker-compose.yml`) para levantar MLflow y Jenkins.
+* **`data/`**: Almacena el corpus versionado (`etf.zip`) y los resultados de inferencia (`processed/`).
+* **`models/best/`**: Registro automático donde se promueve y congela el mejor modelo entrenado (`best_model.ckpt`) para su uso en producción/inferencia masiva.
+* **`pipeline/`**: Definición del flujo CI/CD (`Jenkinsfile`).
+* **`src/`**: Código fuente de Machine Learning (preprocesamiento, entrenamiento, evaluación e inferencia masiva).
+* **`Dockerfile`**: Receta en la raíz del workspace para construir el entorno hermético de experimentación.
 
-## 🧩 Descripción de los Módulos (`src/`)
+## ⚙️ CI/CD y Reproducibilidad R1 (Jenkins & Docker)
+Este proyecto no requiere configuración local de librerías. Utiliza una arquitectura MLOps **Docker-out-of-Docker (DooD)** orquestada por Jenkins, garantizando un entorno 100% hermético, inmutable y reproducible. El pipeline se encarga de extraer los datos, entrenar la red neuronal, promover al mejor modelo a `models/best/` y ejecutar la inferencia masiva.
 
-El código está estructurado de manera modular para separar las responsabilidades del pipeline de Machine Learning:
+### 🚀 Instrucciones de Uso
 
-* **`data_pipeline.py` (Ingesta y Partición):** Se encarga de leer los archivos `.csv` crudos, asignar sus metadatos estáticos (el *Ticker*) y aplicar una partición temporal estricta (70% Entrenamiento, 15% Validación, 15% Prueba) de manera independiente por activo para evitar contaminación de datos futuros.
-* **`tft_dataset.py` (Ingeniería de Tensores):** Transforma los DataFrames de Pandas en el formato complejo `TimeSeriesDataSet` requerido por el modelo TFT. Aquí se definen los codificadores, las variables categóricas/continuas y las ventanas de tiempo (look-back y predicción).
-* **`train_model.py` (Entrenamiento y Tracking):** Define la arquitectura matemática del Temporal Fusion Transformer, configura la parada temprana (Early Stopping) para evitar el sobreajuste y conecta el ciclo de entrenamiento con el servidor local de MLflow para registrar métricas en tiempo real.
-* **`evaluate.py` (Inferencia y Backtesting):** Carga el modelo guardado con mejor rendimiento e infiere sobre el 15% de datos de prueba nunca vistos. Convierte la predicción de precios en señales direccionales de trading y calcula métricas financieras críticas como el **F1-Score Direccional** y el **Maximum Drawdown (MDD)** para validar la eficacia del Agente.
-* **`main.py` (Orquestador):** El script maestro que importa e invoca de forma secuencial los scripts anteriores (pipeline de datos -> dataset -> entrenamiento) centralizando la ejecución del proyecto.
+Para ejecutar el experimento de investigación completo desde tu servidor de CI/CD:
 
-## 🚀 Instrucciones de Instalación y Uso
+1. Levanta la infraestructura base apuntando a la carpeta de contenedores:
+   ```bash
+   docker-compose -f containers/docker-compose.yml up -d
+2. Entra a tu panel de Jenkins (http://localhost:8080) y configura un nuevo Pipeline apuntando a este repositorio.
 
-**1. Preparar los datos:**
-Asegúrate de colocar los archivos `.csv` históricos en la carpeta `data/raw/`.
+3. Haz clic en "Build with Parameters".
 
-**2. Levantar el Servidor de MLflow (Docker en background):**
-```bash
-docker-compose up -d
+4. Selecciona tus parámetros:
+
+   * TRAIN_MODEL: Entrena el modelo desde cero y auto-promueve el mejor a models/best/.
+
+   * RUN_MASS_INFERENCE: Ejecuta la validación sobre los 500+ ETFs usando el modelo de la carpeta best.
+
+5. Al finalizar, descarga tu reporte mass_inference_results.csv o tu best_model.ckpt desde la pestaña de Artefactos en Jenkins.

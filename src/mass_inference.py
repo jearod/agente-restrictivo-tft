@@ -24,9 +24,9 @@ def run_mass_inference():
         print("[ERROR] No hay modelos en 'models/'.")
         return
         
-    best_model_path = max(checkpoints, key=os.path.getctime)
+    best_model_path = "models/best/best_model.ckpt"
     print(f"Cargando modelo: {best_model_path}\n")
-    model = TemporalFusionTransformer.load_from_checkpoint(best_model_path)
+    model = TemporalFusionTransformer.load_from_checkpoint(best_model_path, weights_only=False)
     model.eval()
 
     # 2. Leer los 500+ ETFs de la carpeta raw

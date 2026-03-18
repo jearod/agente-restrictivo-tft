@@ -3,9 +3,8 @@ from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from lightning.pytorch.loggers import MLFlowLogger
 from pytorch_forecasting import TemporalFusionTransformer, TimeSeriesDataSet
 from pytorch_forecasting.metrics import QuantileLoss
-import os # Asegúrate de importar os al inicio del archivo
-   
-
+import os, glob, shutil
+  
 def train_tft_model(training_dataset: TimeSeriesDataSet, val_dataset: TimeSeriesDataSet, batch_size=64):
     """
     Entrena el modelo Temporal Fusion Transformer utilizando PyTorch Lightning
@@ -65,7 +64,25 @@ def train_tft_model(training_dataset: TimeSeriesDataSet, val_dataset: TimeSeries
         train_dataloaders=train_dataloader,
         val_dataloaders=val_dataloader
     )
+
+    print("\n🏆 Promoviendo el mejor modelo a producción...")
+    checkpoints = glob.glob("models/*.ckpt")
+
+    if checkpoints:
+        # Busca el modelo más reciente (el que acaba de generar el callback de PyTorch Lightning)
+        best_model_path = max(checkpoints, key=os.path.getctime)
         
+        # Crea la carpeta prod/ si no existe
+        os.makedirs("models/best", exist_ok=True)
+        
+        # Lo copia como el modelo oficial de producción
+        prod_path = "models/best/best_model.ckpt"
+        shutil.copy(best_model_path, prod_path)
+        
+        print(f"✅ ¡Éxito! El modelo {best_model_path} fue promovido a {prod_path}")
+    else:
+        print("⚠️ Advertencia: No se encontraron checkpoints generados para promover.")
+
     print("Entrenamiento completado y registrado en MLflow.")
         
     return tft_model, trainer
