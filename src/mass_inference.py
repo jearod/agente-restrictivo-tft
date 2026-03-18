@@ -18,12 +18,6 @@ def calculate_mdd(cumulative_returns):
 def run_mass_inference():
     print("=== Iniciando Motor de Inferencia Masiva (Transfer Learning) ===")
     
-    # 1. Cargar el modelo pre-entrenado
-    checkpoints = glob.glob("models/*.ckpt")
-    if not checkpoints:
-        print("[ERROR] No hay modelos en 'models/'.")
-        return
-        
     best_model_path = "models/best/best_model.ckpt"
     print(f"Cargando modelo: {best_model_path}\n")
     model = TemporalFusionTransformer.load_from_checkpoint(best_model_path, weights_only=False)
