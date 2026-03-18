@@ -11,6 +11,7 @@ venv/
 # Datos y Volúmenes (¡Crítico para evitar fugas de datos!)
 # =========================
 data/*
+!data/processed/*
 !data/etf.zip
 !data/metadata_etf.json
 
@@ -19,8 +20,8 @@ mlruns/
 # =========================
 # Modelos y Checkpoints de PyTorch
 # =========================
-models/*
-!models/prod/
+models/*ckpt
+!models/best/*
 lightning_logs/
 
 # =========================

@@ -108,6 +108,7 @@ def run_mass_inference():
     if results:
         results_df = pd.DataFrame(results)
         output_path = "data/processed/mass_inference_results.csv"
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
         results_df.to_csv(output_path, index=False)
         
         # Resumen global
