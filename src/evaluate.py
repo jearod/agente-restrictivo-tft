@@ -33,7 +33,7 @@ def evaluate_agent():
     model.eval()
 
     print("\nExtrayendo el 15% de datos de prueba (Test Set) no vistos...")
-    train_df, _, test_df = load_global_portfolio("data/raw")
+    train_df, _, test_df = load_global_portfolio("data/pretrain")
     
     # Preprocesamiento sin el FutureWarning
     train_df = train_df.groupby('Symbol', group_keys=False).apply(lambda x: add_time_features(x))

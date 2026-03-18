@@ -13,7 +13,7 @@ def main():
     # 1. Ingestión Masiva y Partición
     print("\n--- Fase 1: Ingestión del Corpus Global ---")
     try:
-        train_df, val_df, test_df = load_global_portfolio(data_dir="data/raw")
+        train_df, val_df, test_df = load_global_portfolio(data_dir="data/pretrain")
     except Exception as e:
         print(f"Error crítico: {e}")
         return
