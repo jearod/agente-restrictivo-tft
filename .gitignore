@@ -10,7 +10,10 @@ venv/
 # =========================
 # Datos y Volúmenes (¡Crítico para evitar fugas de datos!)
 # =========================
-data/
+data/processed
+data/pretrain
+data/raw
+
 mlruns/
 
 # =========================

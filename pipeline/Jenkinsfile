@@ -1,7 +1,6 @@
 pipeline {
     agent any
 
-    // PREGUNTA 2: Añadimos un parámetro para decidir si correr la masificación
     parameters {
         booleanParam(name: 'RUN_MASS_INFERENCE', defaultValue: false, description: '¿Ejecutar la validación masiva con los 500+ ETFs?')
     }
@@ -9,7 +8,6 @@ pipeline {
     options {
         buildDiscarder(logRotator(numToKeepStr: '5'))
         disableConcurrentBuilds()
-        // PREGUNTA 3: Esto añade la hora exacta a cada línea de la consola
         timestamps() 
     }
 
@@ -24,19 +22,30 @@ pipeline {
 
         stage('Build Docker Environment') {
             steps {
+                echo "🏗️ Construyendo imagen y horneando los datos (etf.zip) dentro de ella..."
                 sh "docker build --no-cache -t ${DOCKER_IMAGE_NAME} -f docker/Dockerfile ."
             }
         }
 
-        // TÉCNICA MAESTRA: Levantamos el contenedor y lo dejamos vivo en el fondo
         stage('Start Execution Environment') {
             steps {
-                sh "docker rm -f tft_execution || true" // Limpieza por si acaso
+                sh "docker rm -f tft_execution || true"
+                // NOTA: Eliminamos el -v. El contenedor ya tiene todo adentro.
                 sh "docker run -d --name tft_execution --network host -e MLFLOW_TRACKING_URI=http://localhost:5000 ${DOCKER_IMAGE_NAME} tail -f /dev/null"
             }
         }
 
-        // Jenkins ahora medirá el tiempo exacto de ESTE bloque
+        // NUEVA FASE: Descomprimir los datos usando Python nativo
+        stage('Phase 0: Prepare Data') {
+            steps {
+                echo "📦 Extrayendo corpus de ETFs (pretrain y raw)..."
+                // Usamos shutil de Python para extraer el zip dentro de la carpeta data/
+                sh "docker exec tft_execution python3 -c \"import shutil; shutil.unpack_archive('data/etf.zip', 'data/')\""
+                // Verificamos rápidamente que las carpetas se crearon bien
+                sh "docker exec tft_execution ls -la data/"
+            }
+        }
+
         stage('Phase 1: Train Model') {
             steps {
                 echo "🧠 Entrenando modelo TFT..."
@@ -44,7 +53,6 @@ pipeline {
             }
         }
 
-        // Jenkins medirá el tiempo exacto de ESTE bloque
         stage('Phase 2: Evaluate Agent') {
             steps {
                 echo "📊 Evaluando modelo base (F1 y MDD)..."
@@ -52,7 +60,6 @@ pipeline {
             }
         }
 
-        // Se ejecuta ÚNICAMENTE si marcaste la casilla al lanzar el Build
         stage('Phase 3: Mass Inference') {
             when {
                 expression { params.RUN_MASS_INFERENCE == true }
@@ -63,7 +70,6 @@ pipeline {
             }
         }
 
-        // Extrae el artefacto solo si se corrió la masificación
         stage('Extract Artifacts') {
             when {
                 expression { params.RUN_MASS_INFERENCE == true }
@@ -78,7 +84,6 @@ pipeline {
     post {
         always {
             echo "🧹 Destruyendo contenedor y limpiando..."
-            // Pase lo que pase, matamos el contenedor vivo
             sh "docker rm -f tft_execution || true"
             sh "docker image prune -f || true"
         }
