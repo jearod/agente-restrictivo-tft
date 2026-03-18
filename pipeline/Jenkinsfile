@@ -1,79 +1,85 @@
 pipeline {
-    // Ejecutar el pipeline en cualquier agente de Jenkins disponible
     agent any
 
-    // Opciones globales del pipeline
-    options {
-        buildDiscarder(logRotator(numToKeepStr: '5')) // Mantiene solo los últimos 5 logs para no llenar el disco
-        disableConcurrentBuilds() // Evita que dos pipelines choquen si haces muchos commits rápidos
+    // PREGUNTA 2: Añadimos un parámetro para decidir si correr la masificación
+    parameters {
+        booleanParam(name: 'RUN_MASS_INFERENCE', defaultValue: false, description: '¿Ejecutar la validación masiva con los 500+ ETFs?')
     }
 
-    // Variables de entorno
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '5'))
+        disableConcurrentBuilds()
+        // PREGUNTA 3: Esto añade la hora exacta a cada línea de la consola
+        timestamps() 
+    }
+
     environment {
         DOCKER_IMAGE_NAME = "agente-tft-env"
-        WORKSPACE_PATH = "${WORKSPACE}"
     }
 
     stages {
         stage('Checkout') {
-            steps {
-                echo "📥 1. Obteniendo la última versión del código desde GitHub..."
-                checkout scm
-            }
+            steps { checkout scm }
         }
 
         stage('Build Docker Environment') {
             steps {
-                echo "🏗️ 2. Construyendo el entorno hermético (Dockerfile - Grado R1)..."
-                script {
-                    // Usamos la raíz (.) como contexto, pero apuntamos al Dockerfile en su nueva ruta
-                    sh "docker build -t ${DOCKER_IMAGE_NAME} -f docker/Dockerfile ."
-                }
+                sh "docker build -t ${DOCKER_IMAGE_NAME} -f docker/Dockerfile ."
             }
         }
 
-        stage('Train Model') {
+        // TÉCNICA MAESTRA: Levantamos el contenedor y lo dejamos vivo en el fondo
+        stage('Start Execution Environment') {
             steps {
-                echo "🧠 3. Ejecutando el pre-entrenamiento global (src.main)..."
-                script {
-                    // Montamos el workspace para que el modelo entrenado (.ckpt) se guarde en Jenkins
-                    // Sobrescribimos la URL de MLflow para que guarde localmente en la carpeta mlruns
-                    sh """
-                    docker run --rm \
-                    --network host \
-                    -e MLFLOW_TRACKING_URI=http://localhost:5000 \
-                    ${DOCKER_IMAGE_NAME} \
-                    python3 -m src.main
-                    """
-                }
+                sh "docker rm -f tft_execution || true" // Limpieza por si acaso
+                sh "docker run -d --name tft_execution --network host -e MLFLOW_TRACKING_URI=http://localhost:5000 ${DOCKER_IMAGE_NAME} tail -f /dev/null"
             }
         }
 
-        stage('Evaluate Agent') {
+        // Jenkins ahora medirá el tiempo exacto de ESTE bloque
+        stage('Phase 1: Train Model') {
             steps {
-                echo "📊 4. Evaluando el Agente Restrictivo (F1-Score y MDD)..."
-                script {
-                    // Ejecutamos el script de evaluación que acabamos de crear
-                    sh """
-                    docker run --rm \
-                    ${DOCKER_IMAGE_NAME} \
-                    python3 -m src.evaluate
-                    """
-                }
+                echo "🧠 Entrenando modelo TFT..."
+                sh "docker exec tft_execution python3 -m src.main"
+            }
+        }
+
+        // Jenkins medirá el tiempo exacto de ESTE bloque
+        stage('Phase 2: Evaluate Agent') {
+            steps {
+                echo "📊 Evaluando modelo base (F1 y MDD)..."
+                sh "docker exec tft_execution python3 -m src.evaluate"
+            }
+        }
+
+        // Se ejecuta ÚNICAMENTE si marcaste la casilla al lanzar el Build
+        stage('Phase 3: Mass Inference') {
+            when {
+                expression { params.RUN_MASS_INFERENCE == true }
+            }
+            steps {
+                echo "🚀 Ejecutando inferencia masiva en 500+ ETFs..."
+                sh "docker exec tft_execution python3 -m src.mass_inference"
+            }
+        }
+
+        // Extrae el artefacto solo si se corrió la masificación
+        stage('Extract Artifacts') {
+            when {
+                expression { params.RUN_MASS_INFERENCE == true }
+            }
+            steps {
+                sh "docker cp tft_execution:/app/data/processed/mass_inference_results.csv ./mass_inference_results.csv || true"
+                archiveArtifacts artifacts: 'mass_inference_results.csv', allowEmptyArchive: true
             }
         }
     }
 
-    // Acciones al finalizar (sin importar si falló o fue exitoso)
     post {
-        success {
-            echo "✅ Pipeline CI/CD completado con éxito. El Agente Restrictivo ha sido validado."
-        }
-        failure {
-            echo "❌ El pipeline ha fallado. Revisa los logs de la consola en Jenkins."
-        }
         always {
-            echo "🧹 Limpiando caché de imágenes Docker residuales..."
+            echo "🧹 Destruyendo contenedor y limpiando..."
+            // Pase lo que pase, matamos el contenedor vivo
+            sh "docker rm -f tft_execution || true"
             sh "docker image prune -f || true"
         }
     }

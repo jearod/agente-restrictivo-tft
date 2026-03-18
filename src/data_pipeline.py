@@ -29,7 +29,7 @@ def strict_temporal_partition(df):
     
     return train_df, val_df, test_df
 
-def load_global_portfolio(data_dir="data/raw"):
+def load_global_portfolio(data_dir="data/pretrain"):
     all_train, all_val, all_test = [], [], []
     
     print(f"Buscando el corpus global de {len(GLOBAL_ETFS)} ETFs en '{data_dir}'...")
