@@ -1,0 +1,44 @@
+version: '3.8'
+
+# Definimos un volumen persistente gestionado por Docker
+volumes:
+  mlflow_data:
+    name: agente_mlflow_volume
+  jenkins_home:
+    name: infrastructure_jenkins_home
+
+networks:
+  jenkins_mlflow:
+    driver: bridge
+
+services:
+  # Contenedor 1: Servidor de Tracking de MLflow
+  mlflow_server:
+    image: python:3.9-slim
+    container_name: mlflow_server
+    ports:
+      - "5000:5000"
+    # Montamos el volumen persistente en la carpeta de mlruns
+    volumes:
+      - mlflow_data:/app/mlruns
+    networks:
+      - jenkins_mlflow
+    working_dir: /app
+    # Instalamos mlflow y levantamos el servidor para que escuche en todas las interfaces (0.0.0.0)
+    command: >
+      bash -c "pip install mlflow && mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri file:///app/mlruns"
+
+  jenkins:
+    image: infrastructure-jenkins:latest
+    container_name: jenkins
+    privileged: true
+    user: root
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - jenkins_mlflow
+    restart: always
