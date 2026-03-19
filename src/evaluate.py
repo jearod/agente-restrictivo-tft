@@ -71,9 +71,9 @@ def evaluate_agent():
     # --- MÉTRICA 1: F1-Score ---
     f1 = f1_score(signals_true, signals_pred, average='weighted')
     
-    print("\n" + "="*40)
-    print("📊 REPORTE DE RENDIMIENTO REAL (F1-SCORE DIRECCIONAL)")
-    print("="*40)
+    print("\n" + "="*60)
+    print("  📊 REPORTE DE RENDIMIENTO REAL (F1-SCORE DIRECCIONAL)")
+    print("="*59)
     print(classification_report(signals_true, signals_pred, target_names=["Día Subóptimo (0)", "Día Óptimo (1)"]))
     print(f"F1-Score Global: {f1:.4f}")
 

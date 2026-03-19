@@ -4,6 +4,10 @@ from pytorch_forecasting import TimeSeriesDataSet
 from src.data_pipeline import load_global_portfolio
 from src.tft_dataset import add_time_features, create_tft_dataset
 from src.train_model import train_tft_model
+from lightning.pytorch import seed_everything
+
+# Inyectar la semilla maestra para garantizar la reproducibilidad R1
+seed_everything(42, workers=True)
 
 warnings.filterwarnings("ignore")
 

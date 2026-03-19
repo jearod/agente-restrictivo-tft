@@ -9,7 +9,7 @@ def train_tft_model(training_dataset: TimeSeriesDataSet, val_dataset: TimeSeries
     """
     Entrena el modelo Temporal Fusion Transformer utilizando PyTorch Lightning
     y registra el experimento de forma nativa en MLflow.
-    """
+    """ 
     print("Preparando los DataLoaders para entrenamiento y validación...")
     
     train_dataloader = training_dataset.to_dataloader(train=True, batch_size=batch_size, num_workers=0)
@@ -72,7 +72,7 @@ def train_tft_model(training_dataset: TimeSeriesDataSet, val_dataset: TimeSeries
         # Busca el modelo más reciente (el que acaba de generar el callback de PyTorch Lightning)
         best_model_path = max(checkpoints, key=os.path.getctime)
         
-        # Crea la carpeta prod/ si no existe
+        # Crea la carpeta best/ si no existe
         os.makedirs("models/best", exist_ok=True)
         
         # Lo copia como el modelo oficial de producción
