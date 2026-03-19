@@ -94,7 +94,7 @@ pipeline {
             when { expression { params.RUN_MASS_INFERENCE == true } }
             steps {
                 echo "💾 Rescatando el reporte CSV de Inferencia Masiva..."
-                sh "docker cp tft_execution:/app/data/processed/mass_inference_results.csv ./mass_inference_results.csv || true"
+                sh "docker cp tft_execution:/app/data/processed/mass_inference_results.csv data/processed/mass_inference_results.csv || true"
                 archiveArtifacts artifacts: 'mass_inference_results.csv', allowEmptyArchive: true
             }
         }
